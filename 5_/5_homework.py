@@ -136,22 +136,16 @@ time.sleep(2)
 model_name="TinyPixel/Llama-2-7B-bf16-sharded"
 from accelerate import init_empty_weights
 from accelerate.utils import get_balanced_memory
-
 with init_empty_weights():
     dummy = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True)
-
-# ① 只给 gpu-0 分配显存
 max_mem = {0: "8GiB"}
 balanced_mem = get_balanced_memory(
     dummy,
     max_memory=max_mem,
     no_split_module_classes=["LlamaDecoderLayer"]
 )
-
-# ② 手工生成“全部在 0”的 map
 device_map = {name: 0 for name, _ in dummy.named_modules() if len(list(name)) >= 0}
 del dummy
-
 bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,
     bnb_4bit_use_double_quant=True,
@@ -159,7 +153,6 @@ bnb_config = BitsAndBytesConfig(
     bnb_4bit_compute_dtype=torch.bfloat16,
     bnb_4bit_use_cpu_offload=False
 )
-
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
     quantization_config=bnb_config,
@@ -169,7 +162,6 @@ model = AutoModelForCausalLM.from_pretrained(
     low_cpu_mem_usage=True
 )
 model.config.pretraining_tp = 1
-
 print("model loaded")
 tokenizer=AutoTokenizer.from_pretrained(model_name,trust_remote_code=True)
 tokenizer.pad_token=tokenizer.eos_token
@@ -199,7 +191,7 @@ training_arguments = TrainingArguments(
     gradient_accumulation_steps=16,
     gradient_checkpointing=True,
     save_strategy="epoch",
-    evaluation_strategy="epoch",      # ✅ 旧版关键字
+    evaluation_strategy="epoch",
     load_best_model_at_end=True,
     logging_strategy="steps",
     logging_steps=20,
@@ -212,7 +204,6 @@ training_arguments = TrainingArguments(
     save_total_limit=1,
     optim="paged_adamw_8bit"
 )
-
 #训练保存微调参数
 trainer=SFTTrainer(
     model=model,
